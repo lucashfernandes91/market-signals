@@ -16,4 +16,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN uv sync --frozen --no-dev
 
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
+    && mkdir -p /app/data /app/staticfiles \
+    && chown -R app:app /app
+
+USER app
+
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]

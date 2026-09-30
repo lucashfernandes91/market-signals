@@ -5,7 +5,7 @@ from .models import Alert, AlertCondition
 
 
 def _compare(value: Decimal, operator: str, threshold: Decimal) -> bool:
-    operations = {
+    operations: dict[str, bool] = {
         AlertCondition.Operator.GREATER_THAN: value > threshold,
         AlertCondition.Operator.GREATER_THAN_OR_EQUAL: value >= threshold,
         AlertCondition.Operator.LESS_THAN: value < threshold,
@@ -15,7 +15,7 @@ def _compare(value: Decimal, operator: str, threshold: Decimal) -> bool:
 
 
 def evaluate_condition(condition: AlertCondition, market_data: Mapping[str, str]) -> bool:
-    field_by_type = {
+    field_by_type: dict[str, str] = {
         AlertCondition.Type.PRICE_ABOVE: "price",
         AlertCondition.Type.PRICE_BELOW: "price",
         AlertCondition.Type.PRICE_CHANGE_PERCENT: "price_change_percent",

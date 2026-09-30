@@ -13,6 +13,15 @@ class HealthEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_request_id_is_returned(self):
+        response = self.client.get(reverse("health-live"), HTTP_X_REQUEST_ID="dev-check-123")
+        self.assertEqual(response["X-Request-ID"], "dev-check-123")
+
+    def test_invalid_request_id_is_replaced(self):
+        response = self.client.get(reverse("health-live"), HTTP_X_REQUEST_ID="invalid\nvalue")
+        self.assertNotEqual(response["X-Request-ID"], "invalid\nvalue")
+        self.assertEqual(len(response["X-Request-ID"]), 32)
+
     @patch("core.views.get_redis_client")
     def test_ready(self, get_redis_client):
         get_redis_client.return_value = Mock()

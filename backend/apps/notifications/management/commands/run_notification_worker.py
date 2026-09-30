@@ -1,5 +1,7 @@
 import asyncio
+import logging
 import os
+import random
 import socket
 
 from asgiref.sync import sync_to_async
@@ -9,12 +11,19 @@ from redis.exceptions import ResponseError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from apps.notifications.providers import StubNotificationProvider
-from apps.notifications.services import mark_notification_sent, prepare_notification
+from apps.notifications.services import (
+    mark_notification_failed,
+    mark_notification_sent,
+    prepare_notification,
+)
 from infrastructure.redis.client import get_async_redis_client
-from infrastructure.redis.keys import notification_jobs_stream
+from infrastructure.redis.failures import record_failure
+from infrastructure.redis.keys import notification_jobs_stream, retry_key
+from infrastructure.runtime import install_shutdown_handler
 
 GROUP = "notification-workers"
 PENDING_MIN_IDLE_MS = 30_000
+logger = logging.getLogger(__name__)
 
 
 async def ensure_group(redis) -> None:
@@ -28,12 +37,28 @@ async def ensure_group(redis) -> None:
 async def process_messages(redis, stream: str, messages: list) -> None:
     provider = StubNotificationProvider()
     for message_id, payload in messages:
-        notification = await sync_to_async(prepare_notification)(
-            alert_event_id=payload["alert_event_id"]
-        )
-        await provider.send(notification)
-        await sync_to_async(mark_notification_sent)(notification=notification)
-        await redis.xack(stream, GROUP, message_id)
+        try:
+            notification = await sync_to_async(prepare_notification)(
+                alert_event_id=payload["alert_event_id"]
+            )
+            if notification.status != notification.Status.SENT:
+                await provider.send(notification)
+                await sync_to_async(mark_notification_sent)(notification=notification)
+            await redis.xack(stream, GROUP, message_id)
+            await redis.delete(retry_key(GROUP, message_id))
+        except Exception as exc:
+            dead_lettered = await record_failure(
+                redis,
+                stream=stream,
+                group=GROUP,
+                message_id=message_id,
+                payload=payload,
+                error=exc,
+            )
+            if dead_lettered and "alert_event_id" in payload:
+                await sync_to_async(mark_notification_failed)(
+                    alert_event_id=payload["alert_event_id"]
+                )
 
 
 async def reclaim_pending(redis, consumer: str) -> None:
@@ -53,13 +78,15 @@ async def reclaim_pending(redis, consumer: str) -> None:
 
 
 async def run_worker() -> None:
+    install_shutdown_handler()
     redis = get_async_redis_client()
     consumer = f"{socket.gethostname()}-{os.getpid()}"
-    await ensure_group(redis)
     try:
-        await reclaim_pending(redis, consumer)
+        await ensure_group(redis)
+        backoff = 1.0
         while True:
             try:
+                await reclaim_pending(redis, consumer)
                 batches = await redis.xreadgroup(
                     GROUP,
                     consumer,
@@ -67,13 +94,15 @@ async def run_worker() -> None:
                     count=50,
                     block=5_000,
                 )
+                for stream, messages in batches:
+                    await process_messages(redis, stream, messages)
+                backoff = 1.0
             except RedisTimeoutError:
                 continue
             except RedisConnectionError:
-                await asyncio.sleep(1)
-                continue
-            for stream, messages in batches:
-                await process_messages(redis, stream, messages)
+                logger.exception("notification.redis_unavailable")
+                await asyncio.sleep(backoff + random.uniform(0, 0.5))
+                backoff = min(backoff * 2, 30)
     finally:
         await redis.aclose()
 
@@ -84,5 +113,5 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         try:
             asyncio.run(run_worker())
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, asyncio.CancelledError):
             self.stdout.write(self.style.WARNING("Notification Worker encerrado."))

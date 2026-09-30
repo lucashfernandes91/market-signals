@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING, cast
+
 from django.contrib.auth.base_user import BaseUserManager
+
+if TYPE_CHECKING:
+    from .models import User
 
 
 class UserManager(BaseUserManager):
@@ -8,7 +13,7 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("O e-mail é obrigatório")
         email = self.normalize_email(email).strip().lower()
-        user = self.model(email=email, **extra_fields)
+        user = cast("User", self.model(email=email, **extra_fields))
         user.set_password(password)
         user.save(using=self._db)
         return user

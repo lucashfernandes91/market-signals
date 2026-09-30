@@ -31,6 +31,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "core.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -114,4 +115,17 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"json": {"()": "core.logging.JsonFormatter"}},
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        }
+    },
+    "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
 }

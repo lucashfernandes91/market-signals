@@ -74,3 +74,22 @@ class AlertPipelineServiceTests(TestCase):
 
         self.assertEqual(len(first_events), 1)
         self.assertEqual(second_events, [])
+
+    def test_replayed_stream_message_reuses_existing_event(self):
+        self.alert.cooldown_seconds = 0
+        self.alert.save(update_fields=("cooldown_seconds",))
+        payload = {"market_id": str(self.market.id), "price": "70001"}
+
+        first = process_market_event(payload=payload, source_event_id="123-0")
+        replayed = process_market_event(payload=payload, source_event_id="123-0")
+
+        self.assertEqual([event.id for event in first], [event.id for event in replayed])
+        self.assertEqual(AlertEvent.objects.count(), 1)
+
+    def test_empty_candidate_index_skips_alerts(self):
+        payload = {"market_id": str(self.market.id), "price": "70001"}
+
+        events = process_market_event(payload=payload, candidate_ids=set())
+
+        self.assertEqual(events, [])
+        self.assertEqual(AlertEvent.objects.count(), 0)

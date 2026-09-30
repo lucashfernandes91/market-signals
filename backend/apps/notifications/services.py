@@ -26,7 +26,23 @@ def prepare_notification(*, alert_event_id: str) -> Notification:
     return notification
 
 
+@transaction.atomic
 def mark_notification_sent(*, notification: Notification) -> None:
     notification.status = Notification.Status.SENT
     notification.sent_at = timezone.now()
     notification.save(update_fields=("status", "sent_at", "updated_at"))
+    if notification.alert_event_id:
+        AlertEvent.objects.filter(id=notification.alert_event_id).update(
+            notification_status=AlertEvent.NotificationStatus.SENT
+        )
+
+
+@transaction.atomic
+def mark_notification_failed(*, alert_event_id: str) -> None:
+    event_id = UUID(alert_event_id)
+    Notification.objects.filter(alert_event_id=event_id).exclude(
+        status=Notification.Status.SENT
+    ).update(status=Notification.Status.FAILED)
+    AlertEvent.objects.filter(id=event_id).exclude(
+        notification_status=AlertEvent.NotificationStatus.SENT
+    ).update(notification_status=AlertEvent.NotificationStatus.FAILED)

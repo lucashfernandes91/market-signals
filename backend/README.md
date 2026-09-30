@@ -47,15 +47,33 @@ API local: `http://127.0.0.1:8001/`.
 
 WebSocket inicial: `ws://127.0.0.1:8001/ws/market/`.
 
-O Compose fica na raiz do projeto. Em um volume novo, prepare o banco antes de iniciar os
-processos:
+O Compose fica na raiz do projeto. O serviço web aplica migrations e executa o seed
+idempotente antes de iniciar:
 
 ```powershell
-docker compose run --rm web python manage.py migrate
-docker compose run --rm web python manage.py seed_market
-docker compose up -d
+docker compose up --build -d
+docker compose ps
+docker compose logs -f
 ```
 
 O Compose usa recursos próprios do projeto: container `market-radar-dev-redis-1`,
 volume `market-radar-dev_redis_data`, rede `market-radar-dev_default`, Redis na porta
 local `6380` e Django na porta local `8001`.
+
+Para reconstruir no Redis o índice dos alertas ativos:
+
+```powershell
+uv run python manage.py rebuild_alert_index
+```
+
+## Qualidade
+
+```powershell
+uv run python manage.py check
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy apps/alerts/evaluator.py apps/market/providers infrastructure/redis/keys.py
+uv run pytest
+```
+
+A CI executa essas verificações com Python 3.12 e Redis.

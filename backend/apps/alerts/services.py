@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -10,16 +11,33 @@ from .models import Alert, AlertEvent
 
 
 @transaction.atomic
-def process_market_event(*, payload: dict[str, str]) -> list[AlertEvent]:
+def process_market_event(
+    *,
+    payload: dict[str, str],
+    source_event_id: str = "",
+    candidate_ids: Collection[str] | None = None,
+) -> list[AlertEvent]:
     market_id = UUID(payload["market_id"])
     now = timezone.now()
     alerts = Alert.objects.filter(
         market_id=market_id,
         status=Alert.Status.ACTIVE,
-    ).prefetch_related("conditions")
+    )
+    if candidate_ids is not None:
+        if not candidate_ids:
+            return []
+        alerts = alerts.filter(id__in=candidate_ids)
+    alerts = alerts.prefetch_related("conditions")
 
     triggered_events = []
     for alert in alerts:
+        if source_event_id:
+            existing = AlertEvent.objects.filter(
+                alert=alert, source_event_id=source_event_id
+            ).first()
+            if existing is not None:
+                triggered_events.append(existing)
+                continue
         if alert.last_triggered_at is not None:
             cooldown_until = alert.last_triggered_at + timedelta(seconds=alert.cooldown_seconds)
             if cooldown_until > now:
@@ -34,6 +52,7 @@ def process_market_event(*, payload: dict[str, str]) -> list[AlertEvent]:
 
         event = AlertEvent.objects.create(
             alert=alert,
+            source_event_id=source_event_id,
             market_id=market_id,
             observed_value=Decimal(payload["price"]),
             context=payload,

@@ -18,51 +18,67 @@ services:
   web:
     build:
       context: ./backend
-    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+    command:
+      - sh
+      - -c
+      - python manage.py migrate --noinput && python manage.py seed_market && exec daphne -b 0.0.0.0 -p 8000 core.asgi:application
     environment: &backend-environment
       DJANGO_SETTINGS_MODULE: core.settings.development
       DJANGO_SECRET_KEY: django-insecure-compose-development-only
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
       REDIS_URL: redis://redis:6379/0
+      SERVICE_NAME: web
     ports:
-      - "127.0.0.1:8001:8000"
+      - "127.0.0.1:${MARKET_RADAR_WEB_PORT:-8001}:8000"
     volumes:
       - backend_data:/app/data
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready/', timeout=5).close()"]
+      interval: 10s
+      timeout: 7s
+      retries: 6
+      start_period: 30s
 
   market-ingestor:
     build:
       context: ./backend
     command: ["python", "manage.py", "run_market_ingestor"]
-    environment: *backend-environment
+    environment:
+      <<: *backend-environment
+      SERVICE_NAME: market-ingestor
     volumes:
       - backend_data:/app/data
     depends_on:
-      redis:
+      web:
         condition: service_healthy
 
   alert-worker:
     build:
       context: ./backend
     command: ["python", "manage.py", "run_alert_worker"]
-    environment: *backend-environment
+    environment:
+      <<: *backend-environment
+      SERVICE_NAME: alert-worker
     volumes:
       - backend_data:/app/data
     depends_on:
-      redis:
+      web:
         condition: service_healthy
 
   notification-worker:
     build:
       context: ./backend
     command: ["python", "manage.py", "run_notification_worker"]
-    environment: *backend-environment
+    environment:
+      <<: *backend-environment
+      SERVICE_NAME: notification-worker
     volumes:
       - backend_data:/app/data
     depends_on:
-      redis:
+      web:
         condition: service_healthy
 
 volumes:

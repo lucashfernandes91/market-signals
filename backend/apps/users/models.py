@@ -1,4 +1,5 @@
 import uuid
+from typing import ClassVar
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -9,15 +10,15 @@ from .managers import UserManager
 
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = None
+    username = None  # type: ignore[assignment]
     email = models.EmailField("e-mail", unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS: list[str] = []
+    REQUIRED_FIELDS: ClassVar[list[str]] = []
 
-    objects = UserManager()
+    objects = UserManager()  # type: ignore[misc,assignment]
 
     class Meta(AbstractUser.Meta):
         constraints = [

@@ -71,6 +71,7 @@ class AlertEvent(UUIDTimeStampedModel):
         FAILED = "failed", "Falhou"
 
     alert = models.ForeignKey(Alert, on_delete=models.CASCADE, related_name="events")
+    source_event_id = models.CharField(max_length=64, blank=True)
     market = models.ForeignKey(Market, on_delete=models.CASCADE, related_name="alert_events")
     observed_value = models.DecimalField(max_digits=28, decimal_places=12)
     context = models.JSONField(default=dict, blank=True)
@@ -84,6 +85,13 @@ class AlertEvent(UUIDTimeStampedModel):
     class Meta:
         ordering = ("-triggered_at",)
         indexes = [models.Index(fields=("alert", "triggered_at"))]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("alert", "source_event_id"),
+                condition=~models.Q(source_event_id=""),
+                name="alert_event_unique_source_per_alert",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.alert} em {self.triggered_at.isoformat()}"
