@@ -1,0 +1,70 @@
+name: market-radar-dev
+
+services:
+  redis:
+    image: redis:8.2.10-alpine
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - ./infra/docker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ./backend
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+    environment: &backend-environment
+      DJANGO_SETTINGS_MODULE: core.settings.development
+      DJANGO_SECRET_KEY: django-insecure-compose-development-only
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  market-ingestor:
+    build:
+      context: ./backend
+    command: ["python", "manage.py", "run_market_ingestor"]
+    environment: *backend-environment
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  alert-worker:
+    build:
+      context: ./backend
+    command: ["python", "manage.py", "run_alert_worker"]
+    environment: *backend-environment
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  notification-worker:
+    build:
+      context: ./backend
+    command: ["python", "manage.py", "run_notification_worker"]
+    environment: *backend-environment
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  backend_data:
+  redis_data:
