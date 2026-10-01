@@ -77,3 +77,8 @@ uv run pytest
 ```
 
 A CI executa essas verificações com Python 3.12 e Redis.
+
+## Protocolo
+
+O contrato REST e WebSocket está em docs/02_COMMUNICATION_PROTOCOLS.md na raiz
+do repositório.
