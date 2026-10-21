@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import random
@@ -15,7 +16,12 @@ from apps.alerts.index import rebuild_alert_index
 from apps.alerts.services import process_market_event
 from infrastructure.redis.client import get_async_redis_client
 from infrastructure.redis.failures import record_failure
-from infrastructure.redis.keys import alerts_index_key, market_events_stream, retry_key
+from infrastructure.redis.keys import (
+    alerts_index_key,
+    market_events_stream,
+    market_history_key,
+    retry_key,
+)
 from infrastructure.redis.streams import publish_notification_job
 from infrastructure.runtime import install_shutdown_handler
 
@@ -37,10 +43,15 @@ async def process_messages(redis, stream: str, messages: list) -> None:
     for message_id, payload in messages:
         try:
             candidate_ids = await redis.smembers(alerts_index_key(payload["market_id"]))
+            history = [
+                json.loads(point)
+                for point in await redis.zrange(market_history_key(payload["market_id"]), 0, -1)
+            ]
             events = await sync_to_async(process_market_event)(
                 payload=payload,
                 source_event_id=message_id,
                 candidate_ids=candidate_ids,
+                history=history,
             )
             for event in events:
                 await publish_notification_job(

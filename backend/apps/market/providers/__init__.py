@@ -1,5 +1,10 @@
 from .base import MarketProvider
-from .models import MarketQuote, MarketSubscription
-from .stub import StubMarketProvider
+from .models import MarketCandle, MarketQuote, MarketSubscription, ProviderCatalogMarket
 
-__all__ = ("MarketProvider", "MarketQuote", "MarketSubscription", "StubMarketProvider")
+__all__ = (
+    "MarketProvider",
+    "MarketCandle",
+    "MarketQuote",
+    "MarketSubscription",
+    "ProviderCatalogMarket",
+)

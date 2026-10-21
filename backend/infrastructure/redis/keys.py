@@ -7,6 +7,10 @@ def market_state_key(market_id: UUID | str) -> str:
     return f"{PREFIX}:market:state:{market_id}"
 
 
+def market_history_key(market_id: UUID | str) -> str:
+    return f"{PREFIX}:market:history:{market_id}"
+
+
 def market_events_stream() -> str:
     return f"{PREFIX}:stream:market-events"
 

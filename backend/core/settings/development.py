@@ -4,7 +4,11 @@ from .base import *  # noqa: F403
 
 SECRET_KEY = "django-insecure-local-development-only"
 DEBUG = True
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
 CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:8080"]
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6380/0")

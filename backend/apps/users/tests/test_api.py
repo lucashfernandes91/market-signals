@@ -1,3 +1,4 @@
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -7,6 +8,20 @@ from apps.users.models import User, UserPreference
 
 class AuthenticationApiTests(APITestCase):
     password = "a-strong-test-password-2026"
+
+    @override_settings(
+        PERSONAL_MODE_ENABLED=True,
+        PERSONAL_MODE_EMAIL="personal@market-radar.local",
+    )
+    def test_personal_session_creates_passwordless_user_and_tokens(self):
+        response = self.client.post(reverse("users:personal-session"), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        user = User.objects.get(email="personal@market-radar.local")
+        self.assertFalse(user.has_usable_password())
+        self.assertEqual(response.data["account_id"], str(user.id))
 
     def test_register_creates_user_and_preferences(self):
         response = self.client.post(
@@ -62,3 +77,24 @@ class AuthenticationApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"]["code"], "validation_error")
         self.assertIn("email", response.data["error"]["details"])
+
+    def test_updates_valid_preferences_and_rejects_unknown_currency(self):
+        user = User.objects.create_user(email="prefs@example.com", password=self.password)
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(
+            reverse("users:preferences"),
+            {
+                "fiat_currency": "USD",
+                "theme": "dark",
+                "monitoring_profile": "trader",
+            },
+            format="json",
+        )
+        invalid = self.client.patch(
+            reverse("users:preferences"), {"fiat_currency": "EUR"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["fiat_currency"], "USD")
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)

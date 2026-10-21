@@ -2,8 +2,8 @@
 title: "02 — Protocolos de Comunicação e Fluxo de Market Data"
 project: "Market Radar"
 status: ready-for-implementation
-version: 1.0
-date: 2026-09-30
+version: 1.1
+date: 2026-10-14
 scope:
   - REST API
   - WebSocket
@@ -28,6 +28,27 @@ Ele complementa a fundação Django, SQLite e Redis já criada.
 - O cliente nunca avalia alertas; ele apenas cria e consulta regras.
 - Valores futuros acrescentam campos. Uma mudança incompatível exige /v2/.
 - Toda resposta HTTP inclui X-Request-ID.
+
+### Origem da cotação e catálogo
+
+Nesta versão, Binance é a única fonte ativa. O contrato, porém, expõe a origem
+da cotação para que o cliente não dependa de textos ou símbolos fixos de uma
+exchange. O backend controla o catálogo; a entrada de um par Binance não exige
+atualização do cliente.
+
+| Campo | Significado |
+| --- | --- |
+| `market_id` | UUID do instrumento canônico, como BTC/USDT |
+| `provider_market_id` | UUID da listagem que originou a cotação |
+| `provider` | identificador técnico, atualmente `binance` |
+| `provider_name` | nome para exibição, atualmente `Binance` |
+| `provider_symbol` | símbolo na fonte, como `BTCUSDT` |
+| `provider_timestamp` | horário informado pela fonte |
+| `received_at` | horário em que o backend recebeu o dado |
+| `source_status` | `live`, `stale` ou `unavailable`, sem inferir a origem pelo nome da exchange |
+
+Os campos são aditivos em `/api/v1` e `/ws/v1/market/`. `market_id` continua
+compatível com favoritos, alertas, notificações e deep links existentes.
 
 Exemplo de preço:
 
@@ -136,15 +157,19 @@ deltas:
   "type": "market.snapshot",
   "data": {
     "market_id": "ec365d88-5d98-4cd8-9d95-51c639e0e299",
+    "provider_market_id": "20d0ac76-52d6-4b5b-93b8-7c3e9517d02c",
     "symbol": "BTC-USDT",
+    "provider_symbol": "BTCUSDT",
     "price": "70123.42",
     "volume_24h": "18722399122.00",
     "change_24h_percent": "2.31",
     "provider": "binance",
+    "provider_name": "Binance",
     "provider_timestamp": "2026-09-30T16:00:00Z",
     "received_at": "2026-09-30T16:00:00.120Z",
     "sequence": "1790784778878-0",
-    "stale": false
+    "stale": false,
+    "source_status": "live"
   }
 }
 ~~~
@@ -173,13 +198,16 @@ Cada atualização coalescida publica:
   "type": "market.delta",
   "data": {
     "market_id": "ec365d88-5d98-4cd8-9d95-51c639e0e299",
+    "provider_market_id": "20d0ac76-52d6-4b5b-93b8-7c3e9517d02c",
+    "provider": "binance",
     "price": "70125.10",
     "volume_24h": "18722400000.00",
     "change_24h_percent": "2.32",
     "provider_timestamp": "2026-09-30T16:00:01Z",
     "received_at": "2026-09-30T16:00:01.110Z",
     "sequence": "1790784779878-0",
-    "stale": false
+    "stale": false,
+    "source_status": "live"
   }
 }
 ~~~
@@ -208,16 +236,19 @@ O ingestor limita a propagação de atualizações a uma vez a cada 250 ms por
 mercado. O estado mais recente fica no Redis; o stream registra a sequência
 interna usada por workers.
 
-Se o último received_at tiver mais de 15 segundos, o backend publica:
+Se a última cotação tiver mais de 15 segundos, o backend publica um
+`market.delta` com `stale=true` e `source_status=stale`:
 
 ~~~
 {
   "v": 1,
   "id": "4e9b8cf4-1052-4b67-bd19-e65b014c4a0a",
-  "type": "market.stale",
+  "type": "market.delta",
   "data": {
     "market_id": "ec365d88-5d98-4cd8-9d95-51c639e0e299",
-    "last_received_at": "2026-09-30T15:59:40Z"
+    "timestamp": "2026-09-30T15:59:40Z",
+    "stale": "true",
+    "source_status": "stale"
   }
 }
 ~~~
@@ -227,6 +258,12 @@ Snapshots são a fonte de recuperação; o cliente não pede replay de ticks.
 
 Backoff: 1, 2, 4, 8, 16 e no máximo 30 segundos, com jitter de até 500 ms. O
 backoff volta a um segundo depois de uma conexão estável por 60 segundos.
+
+Sem uma cotação em cache ou quando candles/taxas não puderem ser obtidos da
+fonte, a API REST retorna `503` com `error.code=market_data_unavailable`. O
+Radar retorna `200` com listas vazias e `source_status=unavailable`, preservando
+seu escopo para o cliente renderizar o estado recuperável. Uma listagem
+desativada não é assinada pelo ingestor e não pode ser subscrita em WebSocket.
 
 ## 6. Heartbeat e pressão de saída
 
@@ -278,6 +315,8 @@ WebSocket usa:
 | SUBSCRIPTION_LIMIT | limite de mercados excedido |
 | RATE_LIMITED | limite temporário excedido |
 | STALE_MARKET_DATA | cotação sem atualização recente |
+| MARKET_NOT_AVAILABLE | listagem inexistente, inativa ou sem fonte ativa |
+| market_data_unavailable | fonte sem dado atual ou indisponível; REST responde 503 |
 
 ## 8. REST do MVP 1
 
@@ -293,31 +332,19 @@ WebSocket usa:
 | POST /api/v1/auth/token/refresh/ | pública | novo access token |
 | GET /api/v1/auth/me/ | JWT | usuário atual |
 
-### Próxima implementação
+### Disponível no MVP
 
 | Recurso | Rotas |
 | --- | --- |
-| Mercado | GET /api/v1/markets/, GET /api/v1/markets/{id}/, GET /api/v1/markets/{id}/quote/, GET /api/v1/markets/{id}/candles/?interval=1h&limit=200 |
+| Mercado | GET /api/v1/markets/, GET /api/v1/markets/{id}/, GET /api/v1/markets/{id}/quote/, GET /api/v1/markets/{id}/candles/?interval=1h&limit=200, GET /api/v1/markets/radar/?limit=5 |
 | Watchlists | GET,POST /api/v1/watchlists/, GET,PATCH,DELETE /api/v1/watchlists/{id}/, POST /api/v1/watchlists/{id}/items/, DELETE /api/v1/watchlists/{id}/items/{market_id}/ |
 | Alertas | GET,POST /api/v1/alerts/, GET,PATCH,DELETE /api/v1/alerts/{id}/, POST /api/v1/alerts/{id}/pause/, POST /api/v1/alerts/{id}/resume/, GET /api/v1/alerts/{id}/events/ |
 | Dispositivos | PUT /api/v1/devices/{device_id}/, DELETE /api/v1/devices/{device_id}/ |
 | Notificações | GET /api/v1/notifications/, POST /api/v1/notifications/{id}/opened/ |
-| Preferências | GET,PATCH /api/v1/me/preferences/ |
+| Preferências | GET,PATCH /api/v1/auth/me/preferences/ |
 
-Listas usam paginação:
-
-~~~
-{
-  "data": [],
-  "meta": {
-    "next_cursor": null
-  }
-}
-~~~
-
-POST e PATCH que geram efeitos persistentes aceitam Idempotency-Key. O backend
-guarda a chave por usuário durante 24 horas e devolve a resposta original para
-repetições.
+As listas retornam arrays no MVP. A idempotência implementada cobre o consumo
+de eventos Redis por alertas e notificações.
 
 ## 9. Alertas e notificações
 
@@ -357,7 +384,7 @@ Push contém somente dados necessários para abrir a tela correta:
 
 Tokens FCM, APNs e Web Push não entram em logs, respostas REST ou WebSocket.
 
-## 10. Limites iniciais
+## 10. Limites para produção
 
 | Escopo | Limite |
 | --- | --- |
@@ -367,17 +394,16 @@ Tokens FCM, APNs e Web Push não entram em logs, respostas REST ou WebSocket.
 | WebSocket | 50 mercados por conexão |
 | mensagens de comando | 30 por minuto por conexão |
 
-Os contadores usam Redis e retornam 429 no REST ou RATE_LIMITED no WebSocket.
+Os limites REST e WebSocket foram aplicados no backend. A validação de carga e
+o uso de cache compartilhado no ambiente de produção continuam obrigatórios
+antes de exposição pública.
 
-## 11. Sequência de implementação
+## 11. Estado da implementação
 
-1. Criar middleware JWT para Channels e a rota /ws/v1/market/.
-2. Implementar envelope, autenticação por mensagem, heartbeat e limites.
-3. Servir snapshot Redis e deltas coalescidos com sequência.
-4. Implementar endpoints de mercado e candles.
-5. Implementar watchlists, alertas, dispositivos e notificações.
-6. Adicionar testes REST, WebSocket, reconexão, stale data e idempotência.
-7. Migrar Flutter para a rota versionada e remover a rota legada.
+O MVP usa a rota JWT `/ws/v1/market/`, snapshots e deltas com sequência,
+reconexão no Flutter, detecção de cotações desatualizadas e testes de contrato.
+A rota antiga `/ws/market/` permanece apenas por compatibilidade local e pode
+ser removida depois que não houver clientes dependentes.
 
 ## 12. Critérios de aceite
 
@@ -386,5 +412,5 @@ Os contadores usam Redis e retornam 429 no REST ou RATE_LIMITED no WebSocket.
 - Reconexão recupera estado sem ticks duplicados.
 - Uma mensagem Redis reentregue não gera alerta ou push duplicado.
 - Dados antigos aparecem como stale.
-- Limites e erros seguem o envelope definido.
+- Limites de produção são aplicados antes de exposição pública.
 - Nenhum token, segredo ou URL com JWT aparece nos logs.

@@ -5,3 +5,4 @@ class MarketConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.market"
     label = "market"
+    verbose_name = "Mercado"

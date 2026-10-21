@@ -20,9 +20,22 @@ def prepare_notification(*, alert_event_id: str) -> Notification:
         defaults={
             "title": event.alert.name,
             "body": f"{event.market.canonical_symbol}: {event.observed_value}",
-            "payload": {"alert_event_id": str(event.id)},
+            "payload": {
+                "type": "market_alert",
+                "alert_event_id": str(event.id),
+                "market_id": str(event.market_id),
+            },
         },
     )
+    payload = {
+        "type": "market_alert",
+        "notification_id": str(notification.id),
+        "alert_event_id": str(event.id),
+        "market_id": str(event.market_id),
+    }
+    if notification.payload != payload:
+        notification.payload = payload
+        notification.save(update_fields=("payload", "updated_at"))
     return notification
 
 

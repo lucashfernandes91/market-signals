@@ -29,6 +29,20 @@ Endpoints iniciais:
 - `POST /api/v1/auth/token/`
 - `POST /api/v1/auth/token/refresh/`
 - `GET /api/v1/auth/me/`
+- `GET /api/v1/markets/`
+- `GET /api/v1/markets/{id}/`
+- `GET /api/v1/markets/{id}/quote/`
+- `GET /api/v1/markets/{id}/candles/?interval=1h&limit=200`
+- `GET /api/v1/markets/radar/?limit=5`
+- `GET,POST,PATCH,DELETE /api/v1/watchlists/`
+- `POST,DELETE /api/v1/watchlists/{id}/items/{market_id}/`
+- `PATCH /api/v1/watchlists/{id}/items/order/`
+- `GET,POST,PATCH,DELETE /api/v1/alerts/`
+- `POST /api/v1/alerts/{id}/pause/` e `/resume/`
+- `GET /api/v1/alerts/{id}/events/`
+- `GET /api/v1/notifications/` e `POST /api/v1/notifications/{id}/opened/`
+- `PUT,DELETE /api/v1/devices/{device_id}/`
+- `GET,PATCH /api/v1/auth/me/preferences/`
 - `/admin/`
 
 O seed inicial pode ser executado depois das migrations:
@@ -37,15 +51,19 @@ O seed inicial pode ser executado depois das migrations:
 uv run python manage.py seed_market
 ```
 
-Com Redis ativo, o provider simulado pode ser executado com:
+Com Redis ativo, o ingestor usa Binance por padrão:
 
 ```powershell
 uv run python manage.py run_market_ingestor
 ```
 
+Para testes locais sem acesso ao provider real, use `MARKET_PROVIDER=stub`.
+O provider Binance usa candles REST em `data-api.binance.vision` e cotações pelo
+WebSocket público da Binance.
+
 API local: `http://127.0.0.1:8001/`.
 
-WebSocket inicial: `ws://127.0.0.1:8001/ws/market/`.
+WebSocket JWT: `ws://127.0.0.1:8001/ws/v1/market/`.
 
 O Compose fica na raiz do projeto. O serviço web aplica migrations e executa o seed
 idempotente antes de iniciar:
@@ -81,4 +99,11 @@ A CI executa essas verificações com Python 3.12 e Redis.
 ## Protocolo
 
 O contrato REST e WebSocket está em docs/02_COMMUNICATION_PROTOCOLS.md na raiz
+
+## Notificações push
+
+O ambiente de desenvolvimento usa `NOTIFICATION_PROVIDER=stub`. Para ativar FCM,
+instale o serviço com `NOTIFICATION_PROVIDER=fcm` e informe
+`FIREBASE_CREDENTIALS_PATH` apontando para o JSON da conta de serviço dentro do
+container. O worker desativa tokens que o Firebase informar como não registrados.
 do repositório.

@@ -62,3 +62,32 @@ class AlertEvaluatorTests(SimpleTestCase):
                 market_data={"price": "101", "volume_change_percent": "49"},
             )
         )
+
+    def test_price_and_volume_changes_use_window_baseline(self):
+        price_condition = self.condition(
+            AlertCondition.Type.PRICE_CHANGE_PERCENT,
+            AlertCondition.Operator.GREATER_THAN,
+            "10",
+        )
+        price_condition.window_seconds = 3600
+        volume_condition = self.condition(
+            AlertCondition.Type.VOLUME_CHANGE_PERCENT,
+            AlertCondition.Operator.GREATER_THAN_OR_EQUAL,
+            "20",
+        )
+        volume_condition.window_seconds = 3600
+        market_data = {
+            "price": "120",
+            "volume_24h": "240",
+            "timestamp": "2026-09-30T13:00:00+00:00",
+        }
+        history = [
+            {
+                "price": "100",
+                "volume_24h": "200",
+                "timestamp": "2026-09-30T12:00:00+00:00",
+            }
+        ]
+
+        self.assertTrue(evaluate_condition(price_condition, market_data, history))
+        self.assertTrue(evaluate_condition(volume_condition, market_data, history))

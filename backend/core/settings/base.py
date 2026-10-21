@@ -85,6 +85,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "pt-br"
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
@@ -94,6 +95,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "users.User"
+
+# Modo pessoal temporário: permanece desativado por padrão fora do ambiente local.
+PERSONAL_MODE_ENABLED = os.environ.get("PERSONAL_MODE_ENABLED", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+PERSONAL_MODE_EMAIL = os.environ.get(
+    "PERSONAL_MODE_EMAIL", "personal@market-radar.local"
+).strip().lower()
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
@@ -106,6 +118,12 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_THROTTLE_CLASSES": ("core.throttling.AuthenticatedApiRateThrottle",),
+    "DEFAULT_THROTTLE_RATES": {
+        "authenticated_api": "120/min",
+        "login": "5/15min",
+        "refresh": "20/15min",
+    },
     "EXCEPTION_HANDLER": "core.api.exception_handler",
 }
 

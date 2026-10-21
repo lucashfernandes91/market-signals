@@ -56,6 +56,16 @@ class AlertPipelineServiceTests(TestCase):
         self.assertEqual(events[0].notification_status, AlertEvent.NotificationStatus.QUEUED)
 
         notification = prepare_notification(alert_event_id=str(events[0].id))
+        self.assertEqual(notification.payload["type"], "market_alert")
+        self.assertEqual(notification.payload["notification_id"], str(notification.id))
+        self.assertEqual(notification.payload["alert_event_id"], str(events[0].id))
+        self.assertEqual(notification.payload["market_id"], str(self.market.id))
+        self.assertEqual(
+            set(notification.payload),
+            {"type", "notification_id", "alert_event_id", "market_id"},
+        )
+        self.assertNotIn("token", notification.payload)
+        self.assertNotIn("access_token", notification.payload)
         mark_notification_sent(notification=notification)
         notification.refresh_from_db()
 
@@ -93,3 +103,40 @@ class AlertPipelineServiceTests(TestCase):
 
         self.assertEqual(events, [])
         self.assertEqual(AlertEvent.objects.count(), 0)
+
+    def test_windowed_price_and_volume_alerts_trigger_from_history(self):
+        self.alert.conditions.all().delete()
+        self.alert.cooldown_seconds = 0
+        self.alert.save(update_fields=("cooldown_seconds",))
+        AlertCondition.objects.create(
+            alert=self.alert,
+            condition_type=AlertCondition.Type.PRICE_CHANGE_PERCENT,
+            operator=AlertCondition.Operator.GREATER_THAN,
+            value_numeric="10",
+            window_seconds=3600,
+        )
+        AlertCondition.objects.create(
+            alert=self.alert,
+            condition_type=AlertCondition.Type.VOLUME_CHANGE_PERCENT,
+            operator=AlertCondition.Operator.GREATER_THAN,
+            value_numeric="10",
+            window_seconds=3600,
+        )
+        payload = {
+            "market_id": str(self.market.id),
+            "price": "120",
+            "volume_24h": "240",
+            "timestamp": "2026-09-30T13:00:00+00:00",
+        }
+        history = [
+            {
+                "price": "100",
+                "volume_24h": "200",
+                "timestamp": "2026-09-30T12:00:00+00:00",
+            }
+        ]
+
+        events = process_market_event(payload=payload, history=history, source_event_id="window-1")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].context["price"], "120")

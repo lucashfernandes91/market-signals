@@ -1,0 +1,25 @@
+name: market_radar
+description: Cliente Flutter do Market Radar.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.7
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^9.2.4
+  http: ^1.2.2
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

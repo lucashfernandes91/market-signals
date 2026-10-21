@@ -10,7 +10,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import ResponseError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
-from apps.notifications.providers import StubNotificationProvider
+from apps.notifications.providers import build_notification_provider
 from apps.notifications.services import (
     mark_notification_failed,
     mark_notification_sent,
@@ -35,7 +35,7 @@ async def ensure_group(redis) -> None:
 
 
 async def process_messages(redis, stream: str, messages: list) -> None:
-    provider = StubNotificationProvider()
+    provider = build_notification_provider()
     for message_id, payload in messages:
         try:
             notification = await sync_to_async(prepare_notification)(

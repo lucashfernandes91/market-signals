@@ -2,7 +2,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.db import IntegrityError
 from rest_framework import serializers
 
-from .models import User
+from .models import User, UserPreference
 from .services import user_create
 
 
@@ -11,6 +11,15 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ("id", "email", "first_name", "last_name", "date_joined")
         read_only_fields = fields
+
+
+class UserPreferenceSerializer(serializers.ModelSerializer):
+    fiat_currency = serializers.ChoiceField(choices=("BRL", "USD"))
+
+    class Meta:
+        model = UserPreference
+        fields = ("fiat_currency", "timezone", "monitoring_profile", "theme", "updated_at")
+        read_only_fields = ("updated_at",)
 
 
 class RegisterSerializer(serializers.ModelSerializer):

@@ -1,0 +1,220 @@
+name: market-radar-prod
+
+x-backend-environment: &backend-environment
+  DJANGO_SETTINGS_MODULE: core.settings.production
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
+  DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS}
+  POSTGRES_DB: ${POSTGRES_DB:-market_radar}
+  POSTGRES_USER: ${POSTGRES_USER:-market_radar}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-prefer}
+  POSTGRES_CONN_MAX_AGE: ${POSTGRES_CONN_MAX_AGE:-60}
+  REDIS_URL: ${REDIS_URL:?Set REDIS_URL}
+  CACHE_REDIS_URL: ${CACHE_REDIS_URL:?Set CACHE_REDIS_URL}
+  CHANNEL_REDIS_URL: ${CHANNEL_REDIS_URL:?Set CHANNEL_REDIS_URL}
+  MARKET_PROVIDER: ${MARKET_PROVIDER:-binance}
+  MARKET_CATALOG_QUOTE_ASSETS: ${MARKET_CATALOG_QUOTE_ASSETS:-USDT,BRL}
+  MARKET_CATALOG_BASE_ASSETS: ${MARKET_CATALOG_BASE_ASSETS:-}
+  MARKET_CATALOG_EXCLUDED_ASSETS: ${MARKET_CATALOG_EXCLUDED_ASSETS:-}
+  MARKET_CATALOG_MAX_PAIRS: ${MARKET_CATALOG_MAX_PAIRS:-0}
+  MARKET_SUBSCRIPTION_RELOAD_SECONDS: ${MARKET_SUBSCRIPTION_RELOAD_SECONDS:-60}
+  MARKET_STALE_CHECK_SECONDS: ${MARKET_STALE_CHECK_SECONDS:-5}
+  MARKET_STALE_AFTER_SECONDS: ${MARKET_STALE_AFTER_SECONDS:-15}
+  MARKET_CATALOG_SYNC_SECONDS: ${MARKET_CATALOG_SYNC_SECONDS:-300}
+  PERSONAL_MODE_ENABLED: ${PERSONAL_MODE_ENABLED:-false}
+  NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-fcm}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+  SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+  SECURE_HSTS_INCLUDE_SUBDOMAINS: ${SECURE_HSTS_INCLUDE_SUBDOMAINS:-false}
+  SECURE_HSTS_PRELOAD: ${SECURE_HSTS_PRELOAD:-false}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  APP_VERSION: ${APP_VERSION:?Set a unique APP_VERSION for each release}
+
+x-backend-service: &backend-service
+  image: market-radar/backend:${APP_VERSION:?Set a unique APP_VERSION for each release}
+  build:
+    context: ./backend
+  environment:
+    <<: *backend-environment
+  networks:
+    - market-radar
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-market_radar}
+      POSTGRES_USER: ${POSTGRES_USER:-market_radar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - market-radar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  redis:
+    image: redis:8.2.10-alpine
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - market-radar
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  migrate:
+    <<: *backend-service
+    command:
+      - sh
+      - -c
+      - python manage.py migrate --noinput && python manage.py collectstatic --noinput
+    volumes:
+      - ${STATIC_FILES_DIR:-./var/production/staticfiles}:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    <<: *backend-service
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - ${STATIC_FILES_DIR:-./var/production/staticfiles}:/app/staticfiles
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready/', timeout=5).close()"]
+      interval: 15s
+      timeout: 7s
+      retries: 10
+      start_period: 20s
+
+  catalog-sync:
+    <<: *backend-service
+    command:
+      - python
+      - manage.py
+      - sync_market_catalog
+      - --loop
+      - --interval
+      - ${MARKET_CATALOG_SYNC_SECONDS:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  market-ingestor:
+    <<: *backend-service
+    command: ["python", "manage.py", "run_market_ingestor"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  market-watchdog:
+    <<: *backend-service
+    command: ["python", "manage.py", "run_market_watchdog"]
+    environment:
+      <<: *backend-environment
+      SERVICE_NAME: market-watchdog
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  alert-worker:
+    <<: *backend-service
+    command: ["python", "manage.py", "run_alert_worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  notification-worker:
+    <<: *backend-service
+    command: ["python", "manage.py", "run_notification_worker"]
+    environment:
+      <<: *backend-environment
+      FIREBASE_CREDENTIALS_PATH: /run/secrets/firebase-service-account.json
+    volumes:
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:?Set FIREBASE_CREDENTIALS_PATH_HOST}:/run/secrets/firebase-service-account.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+networks:
+  market-radar:
+    name: market-radar-prod_net
+
+volumes:
+  postgres_data:
+    name: market-radar-prod_postgres_data
+  redis_data:
+    name: market-radar-prod_redis_data

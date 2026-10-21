@@ -6,7 +6,12 @@ def exception_handler(exc, context):
     if response is None:
         return None
 
-    code = "validation_error" if response.status_code == 400 else "request_error"
+    if response.status_code == 400:
+        code = "validation_error"
+    elif response.status_code == 503:
+        code = getattr(exc, "default_code", "service_unavailable")
+    else:
+        code = "request_error"
     response.data = {
         "error": {
             "code": code,

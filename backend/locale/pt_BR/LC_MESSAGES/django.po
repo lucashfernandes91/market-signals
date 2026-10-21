@@ -1,0 +1,35 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Project-Id-Version: Market Radar\n"
+"PO-Revision-Date: 2026-10-18 00:00-0300\n"
+"Last-Translator: Market Radar\n"
+"Language-Team: Português brasileiro\n"
+"MIME-Version: 1.0\n"
+"Language: pt_BR\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Token Blacklist"
+msgstr "Lista de bloqueio de tokens"
+
+msgid "Outstanding Token"
+msgstr "Token ativo"
+
+msgid "Outstanding Tokens"
+msgstr "Tokens ativos"
+
+msgid "Blacklisted Token"
+msgstr "Token bloqueado"
+
+msgid "Blacklisted Tokens"
+msgstr "Tokens bloqueados"
+
+msgid "Token for %(user)s (%(jti)s)"
+msgstr "Token de %(user)s (%(jti)s)"
+
+msgid "Blacklisted token for %(user)s"
+msgstr "Token bloqueado de %(user)s"
+
+msgid "expires at"
+msgstr "expira em"

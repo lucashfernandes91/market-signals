@@ -25,11 +25,16 @@ services:
     environment: &backend-environment
       DJANGO_SETTINGS_MODULE: core.settings.development
       DJANGO_SECRET_KEY: django-insecure-compose-development-only
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
       REDIS_URL: redis://redis:6379/0
+      MARKET_PROVIDER: ${MARKET_PROVIDER:-binance}
+      PERSONAL_MODE_ENABLED: ${PERSONAL_MODE_ENABLED:-true}
+      PERSONAL_MODE_EMAIL: ${PERSONAL_MODE_EMAIL:-personal@market-radar.local}
       SERVICE_NAME: web
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-stub}
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-/run/secrets/firebase-service-account.json}
     ports:
-      - "127.0.0.1:${MARKET_RADAR_WEB_PORT:-8001}:8000"
+      - "0.0.0.0:${MARKET_RADAR_WEB_PORT:-8001}:8000"
     volumes:
       - backend_data:/app/data
     depends_on:
@@ -49,6 +54,21 @@ services:
     environment:
       <<: *backend-environment
       SERVICE_NAME: market-ingestor
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
+
+  market-watchdog:
+    build:
+      context: ./backend
+    command: ["python", "manage.py", "run_market_watchdog"]
+    environment:
+      <<: *backend-environment
+      SERVICE_NAME: market-watchdog
+      MARKET_STALE_CHECK_SECONDS: ${MARKET_STALE_CHECK_SECONDS:-5}
+      MARKET_STALE_AFTER_SECONDS: ${MARKET_STALE_AFTER_SECONDS:-15}
     volumes:
       - backend_data:/app/data
     depends_on:

@@ -10,11 +10,14 @@ class Watchlist(UUIDTimeStampedModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="watchlists",
+        verbose_name="usuário",
     )
-    name = models.CharField(max_length=80)
-    is_default = models.BooleanField(default=False)
+    name = models.CharField("nome", max_length=80)
+    is_default = models.BooleanField("padrão", default=False)
 
     class Meta:
+        verbose_name = "lista de acompanhamento"
+        verbose_name_plural = "listas de acompanhamento"
         ordering = ("name",)
         constraints = [
             models.UniqueConstraint(
@@ -33,11 +36,20 @@ class Watchlist(UUIDTimeStampedModel):
 
 
 class WatchlistItem(UUIDTimeStampedModel):
-    watchlist = models.ForeignKey(Watchlist, on_delete=models.CASCADE, related_name="items")
-    market = models.ForeignKey(Market, on_delete=models.CASCADE, related_name="watchlist_items")
-    position = models.PositiveIntegerField(default=0)
+    watchlist = models.ForeignKey(
+        Watchlist,
+        on_delete=models.CASCADE,
+        related_name="items",
+        verbose_name="lista de acompanhamento",
+    )
+    market = models.ForeignKey(
+        Market, on_delete=models.CASCADE, related_name="watchlist_items", verbose_name="mercado"
+    )
+    position = models.PositiveIntegerField("posição", default=0)
 
     class Meta:
+        verbose_name = "item da lista de acompanhamento"
+        verbose_name_plural = "itens das listas de acompanhamento"
         ordering = ("position", "created_at")
         constraints = [
             models.UniqueConstraint(

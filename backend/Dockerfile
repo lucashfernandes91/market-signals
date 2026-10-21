@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.3 /uv /uvx /bin/
 
@@ -16,7 +16,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN uv sync --frozen --no-dev
 
-RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
+RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /app app \
     && mkdir -p /app/data /app/staticfiles \
     && chown -R app:app /app
 
