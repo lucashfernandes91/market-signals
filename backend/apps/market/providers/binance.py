@@ -195,8 +195,6 @@ class BinanceMarketProvider(MarketProvider):
             quote_precision=payload.get("quotePrecision"),
             metadata={
                 "order_types": payload.get("orderTypes", []),
-                "quote_order_qty_market_allowed": payload.get(
-                    "quoteOrderQtyMarketAllowed", False
-                ),
+                "quote_order_qty_market_allowed": payload.get("quoteOrderQtyMarketAllowed", False),
             },
         )

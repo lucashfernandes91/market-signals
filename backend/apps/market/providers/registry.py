@@ -34,6 +34,4 @@ def get_market_provider(provider_code: str | None = None) -> MarketProvider:
     try:
         return _PROVIDER_FACTORIES[code]()
     except KeyError as exc:
-        raise ProviderConfigurationError(
-            f"Provedor de mercado não habilitado: {code}."
-        ) from exc
+        raise ProviderConfigurationError(f"Provedor de mercado não habilitado: {code}.") from exc

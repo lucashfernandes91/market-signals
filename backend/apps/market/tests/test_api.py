@@ -261,23 +261,25 @@ class MarketApiTests(APITestCase):
     def test_returns_aggregated_radar(self, get_market_provider):
         start = datetime(2026, 10, 1, tzinfo=UTC)
         provider = Mock()
-        provider.fetch_candles = AsyncMock(return_value=[
-            MarketCandle(
-                market_id=self.market.id,
-                symbol=self.market.canonical_symbol,
-                interval="1h",
-                open_time=start + timedelta(hours=index),
-                close_time=start + timedelta(hours=index + 1),
-                open=Decimal("100"),
-                high=Decimal("110"),
-                low=Decimal("95"),
-                close=Decimal("105"),
-                volume=Decimal("2"),
-                quote_volume=Decimal("210"),
-                trades=10,
-            )
-            for index in range(24)
-        ])
+        provider.fetch_candles = AsyncMock(
+            return_value=[
+                MarketCandle(
+                    market_id=self.market.id,
+                    symbol=self.market.canonical_symbol,
+                    interval="1h",
+                    open_time=start + timedelta(hours=index),
+                    close_time=start + timedelta(hours=index + 1),
+                    open=Decimal("100"),
+                    high=Decimal("110"),
+                    low=Decimal("95"),
+                    close=Decimal("105"),
+                    volume=Decimal("2"),
+                    quote_volume=Decimal("210"),
+                    trades=10,
+                )
+                for index in range(24)
+            ]
+        )
         get_market_provider.return_value = provider
 
         response = self.client.get(reverse("market:radar"))

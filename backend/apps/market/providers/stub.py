@@ -10,6 +10,7 @@ from .models import MarketCandle, MarketQuote, MarketSubscription, ProviderCatal
 class StubMarketProvider(MarketProvider):
     code = "stub"
     display_name = "Stub"
+
     def __init__(self, interval_seconds: float = 1.0) -> None:
         self.interval_seconds = interval_seconds
         self._tick = 0

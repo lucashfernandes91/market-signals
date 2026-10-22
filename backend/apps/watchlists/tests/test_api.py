@@ -28,9 +28,7 @@ class WatchlistApiTests(APITestCase):
             )
         self.watchlist = Watchlist.objects.create(user=self.user, name="Principal")
         for position, market in enumerate(self.markets):
-            WatchlistItem.objects.create(
-                watchlist=self.watchlist, market=market, position=position
-            )
+            WatchlistItem.objects.create(watchlist=self.watchlist, market=market, position=position)
 
     def test_reorders_all_items(self):
         url = reverse("watchlists:watchlist-order-items", args=(self.watchlist.id,))

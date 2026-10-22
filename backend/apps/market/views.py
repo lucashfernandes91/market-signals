@@ -121,9 +121,7 @@ class MarketOverviewView(generics.GenericAPIView):
     permission_classes = (permissions.AllowAny,)
 
     def get(self, request):
-        queryset = Market.objects.filter(is_active=True).select_related(
-            "base_asset", "quote_asset"
-        )
+        queryset = Market.objects.filter(is_active=True).select_related("base_asset", "quote_asset")
         raw_ids = request.query_params.get("ids")
         if raw_ids is None:
             markets = list(queryset.order_by("canonical_symbol"))
@@ -132,9 +130,7 @@ class MarketOverviewView(generics.GenericAPIView):
                 requested_ids = [UUID(value) for value in raw_ids.split(",") if value][:100]
             except ValueError:
                 requested_ids = []
-            markets_by_id = {
-                market.id: market for market in queryset.filter(id__in=requested_ids)
-            }
+            markets_by_id = {market.id: market for market in queryset.filter(id__in=requested_ids)}
             markets = [
                 markets_by_id[market_id]
                 for market_id in requested_ids
@@ -168,14 +164,12 @@ class MarketOverviewView(generics.GenericAPIView):
                     or origin["provider_market_id"],
                     "provider": quote.get("provider") or origin["provider"],
                     "provider_name": quote.get("provider_name") or origin["provider_name"],
-                    "provider_symbol": quote.get("provider_symbol")
-                    or origin["provider_symbol"],
+                    "provider_symbol": quote.get("provider_symbol") or origin["provider_symbol"],
                     "price": quote.get("price"),
                     "change_24h_percent": quote.get("change_24h_percent"),
                     "volume_24h": quote.get("volume_24h"),
                     "timestamp": quote.get("timestamp"),
-                    "provider_timestamp": quote.get("provider_timestamp")
-                    or quote.get("timestamp"),
+                    "provider_timestamp": quote.get("provider_timestamp") or quote.get("timestamp"),
                     "received_at": quote.get("received_at"),
                     "stale": _parse_bool(quote.get("stale")),
                     "source_status": source_status,
@@ -282,7 +276,6 @@ class MarketCandlesView(generics.GenericAPIView):
             }
         )
 
-
     @staticmethod
     def _serialize_candle(candle):
         return {
@@ -325,10 +318,7 @@ def _read_market_states(redis, market_ids, *, operation="market_state"):
         "market_state_batch_read",
         extra={"operation": operation, "market_count": len(keys), "batched": False},
     )
-    return {
-        str(market_id): redis.hgetall(market_state_key(market_id))
-        for market_id in market_ids
-    }
+    return {str(market_id): redis.hgetall(market_state_key(market_id)) for market_id in market_ids}
 
 
 class MarketRadarView(generics.GenericAPIView):
@@ -362,9 +352,7 @@ class MarketRadarView(generics.GenericAPIView):
         )
 
     def _markets(self, request) -> tuple[list[Market], dict[str, str]]:
-        queryset = Market.objects.filter(is_active=True).select_related(
-            "base_asset", "quote_asset"
-        )
+        queryset = Market.objects.filter(is_active=True).select_related("base_asset", "quote_asset")
         watchlist_id = request.query_params.get("watchlist_id")
         if watchlist_id:
             if not request.user.is_authenticated:

@@ -27,9 +27,7 @@ class SeedMarketTests(TestCase):
             quote_asset=usdt,
             canonical_symbol="BTC-USDT",
         )
-        ProviderMarket.objects.create(
-            provider="binance", market=first, external_symbol="BTCUSDT"
-        )
+        ProviderMarket.objects.create(provider="binance", market=first, external_symbol="BTCUSDT")
         self.assertEqual(len(load_subscriptions("binance")), 1)
 
         eth = Asset.objects.create(
@@ -40,9 +38,7 @@ class SeedMarketTests(TestCase):
             quote_asset=usdt,
             canonical_symbol="ETH-USDT",
         )
-        ProviderMarket.objects.create(
-            provider="binance", market=second, external_symbol="ETHUSDT"
-        )
+        ProviderMarket.objects.create(provider="binance", market=second, external_symbol="ETHUSDT")
 
         self.assertEqual(
             {item.symbol for item in load_subscriptions("binance")},

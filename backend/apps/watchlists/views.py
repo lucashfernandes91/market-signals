@@ -83,14 +83,16 @@ class WatchlistViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_409_CONFLICT,
             )
         copied = Watchlist.objects.create(user=request.user, name=name, is_default=False)
-        WatchlistItem.objects.bulk_create([
-            WatchlistItem(
-                watchlist=copied,
-                market_id=item.market_id,
-                position=item.position,
-            )
-            for item in source.items.all()
-        ])
+        WatchlistItem.objects.bulk_create(
+            [
+                WatchlistItem(
+                    watchlist=copied,
+                    market_id=item.market_id,
+                    position=item.position,
+                )
+                for item in source.items.all()
+            ]
+        )
         return Response(WatchlistSerializer(copied).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=("delete",), url_path=r"items/(?P<market_id>[^/.]+)")

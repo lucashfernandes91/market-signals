@@ -54,10 +54,14 @@ class AlertSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"conditions": "Condições percentuais exigem uma janela positiva."}
                 )
-            if condition_type in {
-                AlertCondition.Type.PRICE_ABOVE,
-                AlertCondition.Type.PRICE_BELOW,
-            } and window_seconds is not None:
+            if (
+                condition_type
+                in {
+                    AlertCondition.Type.PRICE_ABOVE,
+                    AlertCondition.Type.PRICE_BELOW,
+                }
+                and window_seconds is not None
+            ):
                 raise serializers.ValidationError(
                     {"conditions": "Condições de preço não aceitam janela."}
                 )

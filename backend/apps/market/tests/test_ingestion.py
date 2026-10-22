@@ -48,9 +48,7 @@ class MarketIngestionTests(SimpleTestCase):
         await ingest_quote(quote=quote, redis=redis, channel_layer=channel_layer)
 
         self.assertEqual(redis.hashes[market_state_key(market_id)]["price"], "70000.50")
-        self.assertEqual(
-            redis.hashes[market_state_key(market_id)]["change_24h_percent"], "2.5"
-        )
+        self.assertEqual(redis.hashes[market_state_key(market_id)]["change_24h_percent"], "2.5")
         self.assertEqual(redis.hashes[market_state_key(market_id)]["sequence"], "1-0")
         self.assertEqual(
             redis.hashes[market_state_key(market_id)]["provider_market_id"],

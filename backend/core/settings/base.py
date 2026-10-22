@@ -103,9 +103,9 @@ PERSONAL_MODE_ENABLED = os.environ.get("PERSONAL_MODE_ENABLED", "false").lower()
     "yes",
     "on",
 }
-PERSONAL_MODE_EMAIL = os.environ.get(
-    "PERSONAL_MODE_EMAIL", "personal@market-radar.local"
-).strip().lower()
+PERSONAL_MODE_EMAIL = (
+    os.environ.get("PERSONAL_MODE_EMAIL", "personal@market-radar.local").strip().lower()
+)
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
